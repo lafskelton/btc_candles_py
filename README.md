@@ -1,4 +1,4 @@
-# coinbase_candles_py
+# coinbase_candles
 ##### This library is a quick solution to fetching bitcoin candle data from coinbase in an extendable and portable way. Data is fetched and converted into a list of numpy arrays or a pandas DataFrame. I will be adding torch support and extensions for RSI, MA, and a few other datapoints.
 
 ### basic usage
