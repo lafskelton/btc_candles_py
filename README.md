@@ -6,6 +6,8 @@
 from candles import BitcoinCandles
 from datetime import datetime
 
+COINBASE_API_VERSION = "/api/v3"
+
 dataset = BitcoinCandles(
     start_time=datetime(year=2024, month=7, day=11, hour=11, minute=11)
 )
