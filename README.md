@@ -20,4 +20,7 @@ open_data: np.ndarray[np.float32] = dataset.indicator("open")
 
 #save to disk
 dataset.to_csv()
+
+#DataFrame
+dataset.to_df()
 ```
