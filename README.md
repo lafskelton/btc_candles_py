@@ -12,7 +12,7 @@ dataset = CoinbaseCandles(
     start_time=datetime(year=2024, month=7, day=11, hour=11, minute=11)
 )
 
-# #load more data. (300 is max that coinbase will allow. will do nothing if future date specified)
+# update the dataset. this will load all candles from start_time until runtime for your specified symbol. 
 dataset.update()
 
 #access indicators. 
