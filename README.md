@@ -3,17 +3,17 @@
 
 ### basic usage
 ```
-from candles import BitcoinCandles
+from coinbase_candles import CoinbaseCandles
 from datetime import datetime
+import numpy as np
 
-COINBASE_API_VERSION = "/api/v3"
-
-dataset = BitcoinCandles(
+dataset = CoinbaseCandles(
+    symbol="BTC-USDC",
     start_time=datetime(year=2024, month=7, day=11, hour=11, minute=11)
 )
 
-#load more data. (300 is max that coinbase will allow. will do nothing if future date specified)
-dataset.load_more_candles(300)
+# #load more data. (300 is max that coinbase will allow. will do nothing if future date specified)
+dataset.update()
 
 #access indicators. 
 open_data: np.ndarray[np.float32] = dataset.indicator("open")

@@ -3,16 +3,17 @@ from datetime import datetime, timedelta
 import http.client
 import json
 import pandas as pd 
+import os 
 
 # W I P # 
 # Enables incrementally fetching Bitcoin candle data from the CoinBase API formatted into workable numpy arrays.
 # outputs to df and csv. extendable.
+
+
 COINBASE_URL = "api.coinbase.com"
 COINBASE_API_VERSION = "/api/v3"
 
-# how many candles to prepare buffer for ahead of time
 BUFFER_EXPAND_SIZE = 3600
-# when to expand buffer.
 BUFFER_EXPAND_THRESHOLD = 60
 
 # Portable class to store and extend candle data
@@ -21,7 +22,7 @@ class CandleData:
     _ncandles = 0 # also acts as cursor
     _buffsz = 0
     # data
-    _data: dict[str, np.ndarray[np.float32]] = {
+    data: dict[str, np.ndarray[np.float32]] = {
         "open": np.array([], dtype=np.float32),
         "close": np.array([], dtype=np.float32),
         "high": np.array([], dtype=np.float32),
@@ -34,8 +35,8 @@ class CandleData:
         if(self._ncandles >= self._buffsz - BUFFER_EXPAND_THRESHOLD):
             try:
                 self._buffsz += BUFFER_EXPAND_SIZE
-                for key in self._data.keys():
-                    self._data[key].resize((self._buffsz + BUFFER_EXPAND_SIZE))
+                for key in self.data.keys():
+                    self.data[key].resize((self._buffsz + BUFFER_EXPAND_SIZE))
                 return
             except:
                 print("failed to expand array!")
@@ -49,15 +50,14 @@ class CandleData:
     def add_candle(self, data:dict[str, np.float32]):
         self._auto_expand()
         for key in data.keys():
-            #TODO: slow. forgot this was python for a minute. :) 
-            if key in self._data.keys():
-                self._data[key][self._ncandles] = data[key]     
+            if key in self.data.keys():
+                self.data[key][self._ncandles] = data[key]     
         self._ncandles += 1
         return
     
     def to_df(self) -> pd.DataFrame:
         try:
-            df = pd.DataFrame([x[1] for x in self._data.items()]).transpose()
+            df = pd.DataFrame([x[1] for x in self.data.items()]).transpose()
             df.columns = ["open", "close", "high", "low", "volume"]
             return df[(df.T != 0).any()]
         except:
@@ -65,23 +65,27 @@ class CandleData:
             exit()  
 
 # This class calls the coinbase API, retrieves a range of candles, and outputs those candles in a nicer way.
-class BitcoinCandles(CandleData):
+class CoinbaseCandles(CandleData):
     # connection 
     conn: http.client.HTTPSConnection
 
     #parameters
     GRANULARITY = "ONE_MINUTE"
+    symbol: str
     start_time: datetime
     candles_loaded = 0
 
-    def __init__(self, start_time: datetime):
+    downloading = False
+
+    def __init__(self, symbol: str, start_time: datetime):
+        self.symbol = symbol
         self.start_time = start_time
         try:
             self.conn = http.client.HTTPSConnection(COINBASE_URL)
         except:
             print(f"Unable to connect to coinbase API at {COINBASE_URL}")
             exit(1)
-        # 
+
         print(f"Connected to coinbase API at {COINBASE_URL}")
 
 
@@ -98,7 +102,7 @@ class BitcoinCandles(CandleData):
         # fetch
         try: 
             self.conn.request(
-                "GET", f"{COINBASE_API_VERSION}/brokerage/market/products/BTC-USDC/candles?start={int(cursor_time.timestamp())}&end={int(end_time.timestamp())}&granularity={self.GRANULARITY}", 
+                "GET", f"{COINBASE_API_VERSION}/brokerage/market/products/{self.symbol}/candles?start={int(cursor_time.timestamp())}&end={int(end_time.timestamp())}&granularity={self.GRANULARITY}", 
                 '', 
                 {'Content-Type': 'application/json'}
             )
@@ -112,7 +116,10 @@ class BitcoinCandles(CandleData):
             decoder = json.decoder.JSONDecoder()
             data =  decoder.decode(req)
             #
-            if "candles" in data.keys() and len(data['candles']) == 0:
+            if "candles" in data.keys() and len(data['candles']) == 0: 
+                if self.downloading:
+                    self.downloading = False
+                    return
                 print("coinbase returned no candles, maybe the date requested is wrong?")
                 return
             if 'error' in data.keys():
@@ -138,17 +145,23 @@ class BitcoinCandles(CandleData):
         print(f"Fetched {ncandles} additional bitcoin candles (total: {self._ncandles})")
 
 
-    def load_range(self, start_time: datetime, end_time: datetime):
-        #TODO: Need to be able to load data by specifying datetimes instead of how many candles.
+    def update(self,):
+        print(f"updating {self.symbol} dataset!")
+        # download any data required to satisfy the buffer containing all data from start_date until now.
+        self.downloading = True
+        while self.downloading:
+            self.load_more_candles(300)
         return
 
     def indicator(self, key: str) -> np.ndarray[np.float32]:
-        if key in self._data.keys():
-            return self._data[key][0:self._ncandles]
+        if key in self.data.keys():
+            return self.data[key][0:self._ncandles]
         #
         print("ERROR: unable to find indicator", key)
         return []
     
     def to_csv(self):
+        if not os.path.isdir("data"):
+            os.mkdir("data")
         self.to_df().to_csv(f"data/{int(self.start_time.timestamp())}-{int(self._get_cursor_start_time().timestamp())}.csv", index_label="id")
         print(f"Saved {self._ncandles} bitcoin candles to CSV")
